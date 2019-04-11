@@ -1,0 +1,7 @@
+model/
+summary/
+_model/
+_summary/
+__pycache__/
+result/
+*.pyc
