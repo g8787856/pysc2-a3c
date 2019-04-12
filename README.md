@@ -18,7 +18,7 @@ Because my system is windows 10 and anaconda of python3.7, so I create a python 
 4. `deactivate`
 
 ### testing
-`python main.py --map=MoveToBeacon --training=False`
+`python main.py --map=MoveToBeacon --train=False`
 
 # Reference
 The code is based on [here](https://github.com/xhujoy/pysc2-agents). I really appreciat.
