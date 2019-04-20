@@ -73,8 +73,8 @@ class A3CAgent():
 			policy_loss = -tf.reduce_mean(action_log_prob * advantage)
 			# value_loss = -tf.reduce_mean(self.value * advantage)
 			value_loss = tf.reduce_mean(tf.square(self.target_value - self.value) / 2.)
-			entropy = 0
-			# entropy = -tf.reduce_mean(action_log_prob * tf.log(action_log_prob))
+			# entropy = -tf.reduce_mean(self.non_spatial_action * tf.log(self.non_spatial_action))
+			entropy = -tf.reduce_mean(valid_non_spatial_action_prob * tf.log(valid_non_spatial_action_prob))
 			loss = policy_loss + value_loss * self.value_loss_weight - entropy * self.entropy_weight
 
 			self.summary.append(tf.summary.scalar('policy_loss', policy_loss))
@@ -142,17 +142,23 @@ class A3CAgent():
 		# print(np.ravel(x))
 		# [1 2 3 4 5 6]
 		available_actions = obs.observation.available_actions
-		action_id = available_actions[np.argmax(non_spatial_action[available_actions])]
+		# action_id = available_actions[np.argmax(non_spatial_action[available_actions])]
+		non_spatial_action = np.array(non_spatial_action[available_actions])
+		non_spatial_action /= non_spatial_action.sum()
+		action_id = available_actions[np.where(non_spatial_action == np.random.choice(non_spatial_action, p=non_spatial_action))[0][0]]
+
+		# spatial_target = np.where(spatial_action == np.random.choice(spatial_action, p=spatial_action))[0][0]
+		# spatial_target = [int(spatial_target // self.resolution), int(spatial_target % self.resolution)]
 		spatial_target = np.argmax(spatial_action)
 		spatial_target = [int(spatial_target // self.resolution), int(spatial_target % self.resolution)]
 
 		# epsilon-greedy exploration
-		if self.training and np.random.rand() < self.epsilon[0]:
-			action_id = np.random.choice(available_actions)
-		if self.training and np.random.rand() < self.epsilon[1]:
-			delta_y, delta_x = np.random.randint(-4, 5), np.random.randint(-4, 5)
-			spatial_target[0] = int(max(0, min(self.resolution -1, spatial_target[0] + delta_y)))
-			spatial_target[1] = int(max(0, min(self.resolution -1, spatial_target[1] + delta_x)))
+		# if self.training and np.random.rand() < self.epsilon[0]:
+		# 	action_id = np.random.choice(available_actions)
+		# if self.training and np.random.rand() < self.epsilon[1]:
+		# 	delta_y, delta_x = np.random.randint(-4, 5), np.random.randint(-4, 5)
+		# 	spatial_target[0] = int(max(0, min(self.resolution -1, spatial_target[0] + delta_y)))
+		# 	spatial_target[1] = int(max(0, min(self.resolution -1, spatial_target[1] + delta_x)))
 
 		action_args = []
 		for arg in actions.FUNCTIONS[action_id].args:
