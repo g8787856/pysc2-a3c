@@ -41,7 +41,7 @@ if FLAGS.has_gpu:
 	DEVICE = ['/gpu:' + dev for dev in FLAGS.gpus]
 else:
 	ENVS = 1
-	STEPS_PER_BATCH = None
+	STEPS_PER_BATCH = FLAGS.steps_per_batch
 	DEVICE = ['/cpu:0']
 
 checkpoint_path = os.path.join(FLAGS.save_dir, FLAGS.map)
