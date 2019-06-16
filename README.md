@@ -7,7 +7,7 @@ I use [pysc2](https://github.com/deepmind/pysc2) as environment.The original pap
 2. pysc2 (version is 2.0.1)
 3. numpy
 4. tensorflow-gpu (version is 1.10)
-5. abls
+5. absl-py
 
 # How to run
 Because my system is windows 10 and anaconda of python3.7, so I create a python environment named "tf-gpu" and use python3.5 to run, you can skip the first and the last step if you are using another system.
@@ -18,7 +18,7 @@ Because my system is windows 10 and anaconda of python3.7, so I create a python 
 4. `deactivate`
 
 ### testing
-`python main.py --map=MoveToBeacon --train=False`
+`python main.py --map=MoveToBeacon --train=False --envs=1 --exploration_mode=eg`
 
 # Reference
 The code is based on [here](https://github.com/xhujoy/pysc2-agents). I really appreciat.
