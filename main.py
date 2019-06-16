@@ -96,7 +96,7 @@ def run_thread(agent, visualize, summary_writer, learning_rate):
 						elif (step + 1) > FLAGS.reward_cumulate:
 							now_score += obs['score_cumulative'][0]
 						
-						if (step + 1) >= FLAGS.reward_cumulate * 2 and (step + 1) % FLAGS.reward_cumulate == 0 and pre_avg_score != 0 and this_avg_score != 0:
+						if (step + 1) >= FLAGS.reward_cumulate * 2 and (step + 1) % FLAGS.reward_cumulate == 0 and pre_score != 0 and now_score != 0:
 							this_avg_score /= FLAGS.reward_cumulate
 							pre_avg_score /= FLAGS.reward_cumulate
 							print('this_avg_score ', this_avg_score)
