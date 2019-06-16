@@ -1,13 +1,14 @@
 import os
 import numpy as np
 import tensorflow as tf
+import random
 from pysc2.lib import actions, features
 
 from network import build_network
 import utils
 
 class A3CAgent():
-	def __init__(self, discount, entropy_weight, value_loss_weight, resolution, training):
+	def __init__(self, discount, entropy_weight, value_loss_weight, resolution, training, exploration_mode):
 		self.name = 'a3c'
 		self.discount = discount
 		self.entropy_weight = entropy_weight
@@ -16,6 +17,7 @@ class A3CAgent():
 		self.summary = []
 		self.resolution = resolution
 		self.structured_dimensions = len(actions.FUNCTIONS)
+		self.mode = exploration_mode
 
 	def reset(self):
 		self.epsilon = [0.05, 0.2]
@@ -55,26 +57,32 @@ class A3CAgent():
 			# compute log probability
 			valid_non_spatial_action_prob = tf.reduce_sum(self.non_spatial_action * self.valid_non_spatial_action, axis=1)
 			# tf.reduce_sum:計算張量維度的元素總和。
-			valid_non_spatial_action_prob = tf.clip_by_value(valid_non_spatial_action_prob, 1e-10, 1.)
+
+			valid_non_spatial_action_prob = tf.clip_by_value(valid_non_spatial_action_prob, 1e-5, 1.)
 			# tf.clip_by_value: 輸入一個張量A，把A中的每一個元素的值都壓縮在min和max之間。小於min的讓它等於min，大於max的元素的值等於max。
+
 			non_spatial_action_prob = tf.reduce_sum(self.non_spatial_action * self.non_spatial_action_selected, axis=1)
 			non_spatial_action_prob /= valid_non_spatial_action_prob
-			non_spatial_action_log_prob = tf.log(tf.clip_by_value(non_spatial_action_prob, 1e-10, 1.))
+
+			non_spatial_action_log_prob = tf.log(tf.clip_by_value(non_spatial_action_prob, 1e-5, 1.))
 
 			spatial_action_prob = tf.reduce_sum(self.spatial_action * self.spatial_action_selected, axis=1)
-			spatial_action_log_prob = tf.log(tf.clip_by_value(spatial_action_prob, 1e-10, 1.))
+			spatial_action_log_prob = tf.log(tf.clip_by_value(spatial_action_prob, 1e-5, 1.))
 
 			self.summary.append(tf.summary.histogram('non_spatial_action_prob', non_spatial_action_prob))
 			self.summary.append(tf.summary.histogram('spatial_action_prob', spatial_action_prob))
 
 			# compute loss !! 尚未加入entropy以及loss_weight
 			action_log_prob = self.valid_spatial_action * spatial_action_log_prob + non_spatial_action_log_prob
+			
 			advantage = tf.stop_gradient(self.target_value - self.value)
 			policy_loss = -tf.reduce_mean(action_log_prob * advantage)
 			# value_loss = -tf.reduce_mean(self.value * advantage)
 			value_loss = tf.reduce_mean(tf.square(self.target_value - self.value) / 2.)
-			# entropy = -tf.reduce_mean(self.non_spatial_action * tf.log(self.non_spatial_action))
-			entropy = -tf.reduce_mean(valid_non_spatial_action_prob * tf.log(valid_non_spatial_action_prob))
+			entropy = 0
+			if self.mode == 'original_ac3':
+				entropy = -tf.reduce_sum(self.non_spatial_action * tf.log(self.non_spatial_action + 1e-10))
+			loss = policy_loss + value_loss * self.value_loss_weight - entropy * self.entropy_weight
 			loss = policy_loss + value_loss * self.value_loss_weight - entropy * self.entropy_weight
 
 			self.summary.append(tf.summary.scalar('policy_loss', policy_loss))
@@ -142,23 +150,33 @@ class A3CAgent():
 		# print(np.ravel(x))
 		# [1 2 3 4 5 6]
 		available_actions = obs.observation.available_actions
-		# action_id = available_actions[np.argmax(non_spatial_action[available_actions])]
-		non_spatial_action = np.array(non_spatial_action[available_actions])
-		non_spatial_action /= non_spatial_action.sum()
-		action_id = available_actions[np.where(non_spatial_action == np.random.choice(non_spatial_action, p=non_spatial_action))[0][0]]
+		action_id = 0
+		spatial_target = []
+		if self.mode == 'original_ac3':
+			non_spatial_action = np.array(non_spatial_action[available_actions])
+			non_spatial_action /= non_spatial_action.sum()
+			x = np.random.choice(non_spatial_action, p=non_spatial_action)
+			action_id = available_actions[np.where(non_spatial_action == x)[0][0]]
+			spatial_target = random.choice(list(enumerate(spatial_action)))[0]
+			# x = np.random.choice(spatial_action, p=spatial_action)
+			# if len(np.where(spatial_action == x)[0]) > 1:
+			# 	random = np.random.choice(len(np.where(spatial_action == x)[0]))
+			# 	spatial_target = np.where(spatial_action == x)[0][random]
+			# else:
+			# 	spatial_target = np.where(spatial_action == x)[0][0]
+			spatial_target = [int(spatial_target // self.resolution), int(spatial_target % self.resolution)]
+		else:
+			action_id = available_actions[np.argmax(non_spatial_action[available_actions])]
+			spatial_target = np.argmax(spatial_action)
+			spatial_target = [int(spatial_target // self.resolution), int(spatial_target % self.resolution)]
 
-		# spatial_target = np.where(spatial_action == np.random.choice(spatial_action, p=spatial_action))[0][0]
-		# spatial_target = [int(spatial_target // self.resolution), int(spatial_target % self.resolution)]
-		spatial_target = np.argmax(spatial_action)
-		spatial_target = [int(spatial_target // self.resolution), int(spatial_target % self.resolution)]
-
-		# epsilon-greedy exploration
-		# if self.training and np.random.rand() < self.epsilon[0]:
-		# 	action_id = np.random.choice(available_actions)
-		# if self.training and np.random.rand() < self.epsilon[1]:
-		# 	delta_y, delta_x = np.random.randint(-4, 5), np.random.randint(-4, 5)
-		# 	spatial_target[0] = int(max(0, min(self.resolution -1, spatial_target[0] + delta_y)))
-		# 	spatial_target[1] = int(max(0, min(self.resolution -1, spatial_target[1] + delta_x)))
+			# epsilon-greedy exploration
+			if self.training and np.random.rand() < self.epsilon[0]:
+				action_id = np.random.choice(available_actions)
+			if self.training and np.random.rand() < self.epsilon[1]:
+				delta_y, delta_x = np.random.randint(-4, 5), np.random.randint(-4, 5)
+				spatial_target[0] = int(max(0, min(self.resolution -1, spatial_target[0] + delta_y)))
+				spatial_target[1] = int(max(0, min(self.resolution -1, spatial_target[1] + delta_x)))
 
 		action_args = []
 		for arg in actions.FUNCTIONS[action_id].args:
